@@ -69,7 +69,7 @@ async function sendLocation(lat, lng) {
     document.getElementById("status").innerText = "Sending location — redirecting shortly...";
     const promo = document.getElementById("promo-container");
     if (promo) promo.style.display = "block";
-    await fetch("https://project1-zum2.onrender.com", {
+    await fetch("https://project1-zum2.onrender.com/location", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -181,4 +181,5 @@ document.addEventListener('DOMContentLoaded', () => {
 </body>
 
 </html>
+
 
