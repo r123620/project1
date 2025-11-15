@@ -53,8 +53,10 @@ app.get("/map", (req, res) => {
     `;
     res.send(html);
 });
+const PORT = process.env.PORT || 3000;
 
 app.listen(3000, () => {
     console.log("Backend running on http://localhost:3000");
     console.log("Map available at → http://localhost:3000/map");
+
 });
